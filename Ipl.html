@@ -1,1 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CricScorer Ultimate Pro</title>
+    <style>
+        :root {
+            --primary: #1e40af;
+            --secondary: #fbc02d;
+            --bg: #030712;
+            --card: #111827;
+            --text: #f3f4f6;
+            --muted: #9ca3af;
+            --out: #ef4444;
+            --success: #22c55e;
+            --accent: #a855f7;
+        }
 
+        body {
+            margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            padding-bottom: 240px; overflow-x: hidden;
+        }
+
+        /* Setup Overlay */
+        #setup-screen {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: var(--bg); z-index: 1000; display: flex;
+            flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;
+        }
+
+        .setup-card { background: var(--card); width: 100%; max-width: 400px; padding: 25px; border-radius: 20px; border: 1px solid #374151; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; background: #1f2937; border: 1px solid #374151; color: #fff; border-radius: 8px; box-sizing: border-box; }
+        label { font-size: 0.75rem; color: var(--secondary); font-weight: bold; text-transform: uppercase; }
+
+        /* Header IPL Style */
+        .header {
+            background: linear-gradient(180deg, var(--primary) 0%, #0c112b 100%);
+            padding: 20px; border-bottom-left-radius: 25px; border-bottom-right-radius: 25px;
+            text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        }
+        .score-big { font-size: 3.5rem; font-weight: 900; margin: 5px 0; letter-spacing: -2px; }
+        .match-info { display: flex; justify-content: center; gap: 15px; font-weight: bold; color: var(--secondary); font-size: 0.9rem; }
+        
+        .target-bar { 
+            background: rgba(0,0,0,0.4); margin-top: 15px; padding: 10px; border-radius: 12px; 
+            border: 1px dashed var(--secondary); display: none; font-size: 0.85rem;
+        }
+
+        /* Stats Cards */
+        .card { background: var(--card); margin: 10px; border-radius: 15px; padding: 15px; border: 1px solid #1f2937; }
+        .card-title { color: var(--secondary); font-size: 0.75rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; text-transform: uppercase; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th { text-align: left; color: var(--muted); padding-bottom: 8px; font-weight: normal; }
+        td { padding: 10px 0; border-top: 1px solid #1f2937; }
+        
+        .on-strike { color: var(--secondary); font-weight: bold; }
+        .on-strike::after { content: ' *'; }
+
+        /* Timeline */
+        .timeline { display: flex; gap: 8px; overflow-x: auto; padding: 15px; background: #000; margin: 10px; border-radius: 12px; }
+        .ball { min-width: 32px; height: 32px; border-radius: 50%; background: #334155; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
+        .ball.w { background: var(--out); }
+        .ball.four { border: 2px solid var(--success); color: var(--success); }
+        .ball.six { border: 2px solid var(--accent); color: var(--accent); }
+
+        /* Fall of Wickets */
+        .fow-text { font-size: 0.75rem; color: var(--muted); margin-top: 5px; }
+
+        /* Controls */
+        .controls { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.95); padding: 10px; box-sizing: border-box; border-top: 1px solid #1f2937; }
+        .btn-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 8px; }
+        .btn-row-alt { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        
+        button { padding: 15px 0; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
+        .btn-run { background: #1f2937; color: var(--primary); border: 1px solid var(--primary); }
+        .btn-extra { background: #064e3b; color: var(--success); }
+        .btn-out { background: var(--out); color: white; }
+        .btn-util { background: #334155; color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen">
+        <div class="setup-card">
+            <h2 style="text-align:center; color:var(--secondary); margin-top:0;">MATCH SETUP</h2>
+            
+            <label>Batting Team</label>
+            <input type="text" id="team-a-name" placeholder="Enter Team Name" value="INDIA">
+            
+            <label>Bowling Team</label>
+            <input type="text" id="team-b-name" placeholder="Enter Team Name" value="AUSTRALIA">
+            
+            <label>Overs</label>
+            <select id="match-overs">
+                <option value="5">5 Overs</option>
+                <option value="10">10 Overs</option>
+                <option value="20" selected>20 Overs (T20)</option>
+                <option value="50">50 Overs (ODI)</option>
+            </select>
+            
+            <button class="btn-out" style="width:100%; margin-top:10px;" onclick="initMatch()">START MATCH</button>
+            <button class="btn-util" style="width:100%; margin-top:8px;" onclick="loadGame()">RESUME PREVIOUS</button>
+        </div>
+    </div>
+
+    <header class="header">
+        <div id="disp-teams" style="font-weight:bold; letter-spacing:1px; margin-bottom:5px;">INDIA v AUSTRALIA</div>
+        <div class="score-big"><span id="disp-runs">0</span>/<span id="disp-wickets">0</span></div>
+        <div class="match-info">
+            <span>OVERS: <b id="disp-overs">0.0</b> / <span id="max-overs">20</span></span>
+            <span>CRR: <b id="disp-crr">0.00</b></span>
+        </div>
+        <div class="target-bar" id="target-ui">
+            TARGET: <b id="target-val">0</b> | NEED <b id="need-val">0</b> OFF <b id="balls-val">0</b> | RRR: <b id="rrr-val">0.00</b>
+        </div>
+    </header>
+
+    <div class="card">
+        <div class="card-title">Batting</div>
+        <table>
+            <thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s/6s</th><th>SR</th></tr></thead>
+            <tbody id="bat-table"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Bowling</div>
+        <table>
+            <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>ECO</th></tr></thead>
+            <tbody id="bowl-table"></tbody>
+        </table>
+    </div>
+
+    <div class="timeline" id="timeline"></div>
+
+    <div class="card">
+        <div class="card-title">Fall of Wickets</div>
+        <div id="fow-display" class="fow-text">No wickets yet.</div>
+    </div>
+
+    <footer class="controls">
+        <div class="btn-row">
+            <button class="btn-run" onclick="recordBall(0)">0</button>
+            <button class="btn-run" onclick="recordBall(1)">1</button>
+            <button class="btn-run" onclick="recordBall(2)">2</button>
+            <button class="btn-run" onclick="recordBall(3)">3</button>
+            <button class="btn-run" onclick="recordBall(4)">4</button>
+            <button class="btn-run" onclick="recordBall(6)">6</button>
+        </div>
+        <div class="btn-row-alt">
+            <button class="btn-extra" onclick="recordExtra('WD')">WD</button>
+            <button class="btn-extra" onclick="recordExtra('NB')">NB</button>
+            <button class="btn-extra" onclick="recordExtra('LB')">LB/B</button>
+            <button class="btn-out" onclick="recordWicket()">WICKET</button>
+        </div>
+        <div class="btn-row-alt" style="margin-top:5px;">
+            <button class="btn-util" onclick="undo()">UNDO</button>
+            <button class="btn-util" onclick="newBowler()">NEW BOWLER</button>
+            <button class="btn-util" onclick="resetGame()">RESET</button>
+            <button class="btn-util" style="background:var(--success); color:#000" onclick="saveGame()">SAVE</button>
+        </div>
+    </footer>
+
+    <script>
+        let history = [];
+        let state = {};
+
+        function initMatch() {
+            const teamA = document.getElementById('team-a-name').value.toUpperCase();
+            const teamB = document.getElementById('team-b-name').value.toUpperCase();
+            const maxOv = document.getElementById('match-overs').value;
+
+            state = {
+                teamA, teamB, maxOv,
+                innings: 1, target: null,
+                runs: 0, wickets: 0, balls: 0,
+                strikerIdx: 0,
+                batsmen: [
+                    { name: prompt(`Striker for ${teamA}:`, "Batter 1"), runs: 0, balls: 0, fours: 0, sixes: 0 },
+                    { name: prompt(`Non-Striker for ${teamA}:`, "Batter 2"), runs: 0, balls: 0, fours: 0, sixes: 0 }
+                ],
+                bowlers: [{ name: prompt(`Opening Bowler for ${teamB}:`, "Bowler 1"), balls: 0, runs: 0, wickets: 0, maidens: 0 }],
+                currentBowler: 0,
+                fow: [], ballLog: []
+            };
+
+            document.getElementById('setup-screen').style.display = 'none';
+            render();
+        }
+
+        function render() {
+            localStorage.setItem('cric_save', JSON.stringify(state));
+            
+            document.getElementById('disp-teams').innerText = `${state.teamA} v ${state.teamB}`;
+            document.getElementById('disp-runs').innerText = state.runs;
+            document.getElementById('disp-wickets').innerText = state.wickets;
+            document.getElementById('disp-overs').innerText = `${Math.floor(state.balls/6)}.${state.balls%6}`;
+            document.getElementById('max-overs').innerText = state.maxOv;
+            
+            // CRR & Target
+            let crr = state.balls > 0 ? (state.runs / (state.balls/6)).toFixed(2) : "0.00";
+            document.getElementById('disp-crr').innerText = crr;
+
+            if(state.innings === 2) {
+                document.getElementById('target-ui').style.display = 'block';
+                let need = state.target - state.runs;
+                let rem = (state.maxOv * 6) - state.balls;
+                document.getElementById('target-val').innerText = state.target;
+                document.getElementById('need-val').innerText = need;
+                document.getElementById('balls-val').innerText = rem;
+                document.getElementById('rrr-val').innerText = rem > 0 ? (need / (rem/6)).toFixed(2) : "0.00";
+            }
+
+            // Tables
+            document.getElementById('bat-table').innerHTML = state.batsmen.map((p, i) => `
+                <tr class="${i === state.strikerIdx ? 'on-strike' : ''}">
+                    <td>${p.name}</td><td>${p.runs}</td><td>${p.balls}</td>
+                    <td>${p.fours}/${p.sixes}</td><td>${p.balls > 0 ? ((p.runs/p.balls)*100).toFixed(1) : '0.0'}</td>
+                </tr>`).join('');
+
+            let b = state.bowlers[state.currentBowler];
+            document.getElementById('bowl-table').innerHTML = `
+                <tr><td>${b.name}</td><td>${Math.floor(b.balls/6)}.${b.balls%6}</td><td>0</td>
+                <td>${b.runs}</td><td>${b.wickets}</td><td>${b.balls > 0 ? (b.runs/(b.balls/6)).toFixed(2) : '0.00'}</td></tr>`;
+
+            // Timeline
+            document.getElementById('timeline').innerHTML = state.ballLog.slice(-12).map(x => 
+                `<div class="ball ${x==='W'?'w':(x==4?'four':(x==6?'six':''))}">${x}</div>`).join('');
+            
+            document.getElementById('fow-display').innerText = state.fow.length ? state.fow.join(' | ') : "No wickets yet.";
+        }
+
+        function saveHistory() { history.push(JSON.parse(JSON.stringify(state))); }
+
+        function recordBall(r) {
+            saveHistory();
+            state.runs += r; state.balls++;
+            state.batsmen[state.strikerIdx].runs += r;
+            state.batsmen[state.strikerIdx].balls++;
+            if(r===4) state.batsmen[state.strikerIdx].fours++;
+            if(r===6) state.batsmen[state.strikerIdx].sixes++;
+            state.bowlers[state.currentBowler].runs += r;
+            state.bowlers[state.currentBowler].balls++;
+            state.ballLog.push(r);
+            if(r%2 !== 0 || state.balls%6 === 0) rotate();
+            checkInnings();
+            render();
+        }
+
+        function recordExtra(type) {
+            saveHistory();
+            state.runs += 1;
+            state.bowlers[state.currentBowler].runs += 1;
+            if(type === 'NB') state.batsmen[state.strikerIdx].balls++;
+            if(type === 'LB') { state.balls++; state.bowlers[state.currentBowler].balls++; }
+            state.ballLog.push(type);
+            checkInnings();
+            render();
+        }
+
+        function recordWicket() {
+            saveHistory();
+            let mode = prompt("Dismissal: (Caught, Bowled, LBW, Run Out)", "Caught");
+            state.wickets++; state.balls++;
+            state.bowlers[state.currentBowler].wickets++;
+            state.bowlers[state.currentBowler].balls++;
+            state.fow.push(`${state.runs}/${state.wickets} (${mode})`);
+            state.ballLog.push('W');
+            if(state.wickets < 10) {
+                state.batsmen[state.strikerIdx] = { name: prompt("New Batter:"), runs:0, balls:0, fours:0, sixes:0 };
+            }
+            if(state.balls%6 === 0) rotate();
+            checkInnings();
+            render();
+        }
+
+        function checkInnings() {
+            let overLimit = state.balls >= (state.maxOv * 6);
+            let allOut = state.wickets >= 10;
+            let targetMet = (state.innings === 2 && state.runs >= state.target);
+
+            if((overLimit || allOut || targetMet)) {
+                if(state.innings === 1) {
+                    if(confirm("Innings 1 Over. Start Innings 2?")) {
+                        state.target = state.runs + 1;
+                        state.innings = 2;
+                        state.runs = 0; state.wickets = 0; state.balls = 0;
+                        let t = state.teamA; state.teamA = state.teamB; state.teamB = t;
+                        state.batsmen = [
+                            { name: prompt(`Striker for ${state.teamA}:`), runs:0, balls:0, fours:0, sixes:0 },
+                            { name: prompt(`Non-Striker for ${state.teamA}:`), runs:0, balls:0, fours:0, sixes:0 }
+                        ];
+                        state.bowlers = [{ name: prompt(`Bowler for ${state.teamB}:`), balls:0, runs:0, wickets:0, maidens:0 }];
+                        state.currentBowler = 0; state.ballLog = []; state.fow = [];
+                    }
+                } else {
+                    alert("MATCH FINISHED!");
+                }
+            }
+        }
+
+        function rotate() { state.strikerIdx = state.strikerIdx === 0 ? 1 : 0; }
+        function undo() { if(history.length) { state = history.pop(); render(); } }
+        function newBowler() { saveHistory(); state.bowlers.push({ name: prompt("New Bowler:"), balls:0, runs:0, wickets:0, maidens:0 }); state.currentBowler = state.bowlers.length - 1; render(); }
+        function saveGame() { alert("Match progress saved locally."); render(); }
+        function loadGame() { let s = localStorage.getItem('cric_save'); if(s){ state = JSON.parse(s); document.getElementById('setup-screen').style.display='none'; render(); } }
+        function resetGame() { if(confirm("Reset everything?")) { localStorage.clear(); location.reload(); } }
+    </script>
+</body>
+</html>
